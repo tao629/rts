@@ -8,7 +8,9 @@ mod hostkey;
 mod report;
 mod session;
 
-use log::{LevelFilter, info};
+use log::info;
+
+use rts_core::logger::LevelFilter;
 
 use crate::hostkey::{HostKeyStore, Status};
 
@@ -24,10 +26,24 @@ async fn main() {
 }
 
 async fn run() -> i32 {
-    if let Err(e) = rts_core::logger::log::init(LevelFilter::Warn) {
-        eprintln!("警告: 初始化日志失败: {e}");
-    }
+    // 日志走异步写入，guard 存活期间后台工作线程才会落盘；
+    // `std::process::exit` 不执行析构，所以这里在 run_inner 返回后显式释放。
+    let guard = match rts_core::logger::log::init(
+        rts_core::logger::LogConfig::default().level(LevelFilter::WARN),
+    ) {
+        Ok(guard) => Some(guard),
+        Err(e) => {
+            eprintln!("警告: 初始化日志失败: {e}");
+            None
+        }
+    };
 
+    let code = run_inner().await;
+    drop(guard);
+    code
+}
+
+async fn run_inner() -> i32 {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let action = match cli::parse(&args) {
         Ok(action) => action,
