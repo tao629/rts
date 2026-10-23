@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["base/rts-core", "server/rts-center", "toolkit/r_connector"]
+members = ["base/rts-core", "server/rts-center", "toolkit/f_matcher", "toolkit/r_connector"]
 
 [workspace.dependencies]
 ftail = "0.3"
