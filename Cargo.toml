@@ -6,3 +6,10 @@ members = ["base/rts-core", "server/rts-center", "toolkit/f_matcher", "toolkit/r
 ftail = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# 发布产物优化：跨 crate 链接期优化 + 单编译单元 + 去符号。
+# 手工 `cargo build --release` 与 scripts/build_release.sh 的发布产物保持一致。
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
