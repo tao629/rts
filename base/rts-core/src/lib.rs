@@ -13,4 +13,5 @@ mod tests {
     }
 }
 
+pub mod config;
 pub mod logger;
