@@ -106,9 +106,12 @@ uname -a
 ### 5.3 指令执行
 
 - 顺序执行配置中的每条指令，同一连接内**每条指令开启一个新的 session channel**（`channel_open_session` → `exec`），便于隔离单条指令的退出码。
-- 每条指令收集：stdout（`ChannelMsg::Data`）、stderr（`ChannelMsg::ExtendedData` 且 `ext == 1`）、退出码（`ChannelMsg::ExitStatus`）。
+- 每条指令的输出**流式转发**（不缓冲在内存）：stdout（`ChannelMsg::Data`）写本地 stdout，stderr（`ChannelMsg::ExtendedData` 且 `ext == 1`）写本地 stderr；退出码取自 `ChannelMsg::ExitStatus`。
 - 单条指令失败（退出码非零）或执行出错，**不中断**后续指令执行。
 - 远端未返回退出状态时，退出码记为"未提供"，不回填 0。
+- 单条指令默认超时 300 秒（可用环境变量 `RTS_COMMAND_TIMEOUT` 覆盖，单位秒）；超时按该条失败处理并继续下一条。
+- 收到退出码后，最多再等 2 秒让远端关闭通道；远端不关闭时收尾该条指令，不无限等待。
+- 本地 stdout 被下游管道关闭（如 `| head`）时静默退出，不 panic。
 
 ### 5.4 结果回显格式
 
@@ -161,8 +164,17 @@ uname -a
 | `log` | 0.4 | 日志门面 | rts-core 已用 |
 | `rpassword` | 7.x | 密码交互输入（不回显） | 仅在配置密码为空时使用 |
 | `rts-core` | 路径依赖 | 日志初始化 | workspace 内 |
+| `rand`（dev） | 0.10 | 仅测试与 mock 服务端生成主机密钥 | 已在依赖树中（russh 依赖） |
 
 `rpassword` 依赖 `libc`（unix 下的 termios），是纯 Rust crate，无需系统额外安装库。
+
+### 7.1 环境变量
+
+| 变量 | 作用 | 默认值 |
+|----|----|-------|
+| `RTS_LOG_LEVEL` | 日志级别（`off`/`error`/`warn`/`info`/`debug`/`trace`） | `warn` |
+| `RTS_KNOWN_HOSTS` | known_hosts 文件路径 | `~/.ssh/known_hosts` |
+| `RTS_COMMAND_TIMEOUT` | 单条指令超时秒数 | `300` |
 
 ## 8. 验证方式
 
@@ -194,6 +206,21 @@ uname -a
 4. 手工把 known_hosts 里的 key 改掉，确认拒绝连接并提示"主机密钥已变更"。
 5. 用错误密码确认认证失败文案与退出码 3。
 6. 密码留空确认交互式不回显输入。
+
+### 8.3 无 sshd 时的替代验证（本次实际采用）
+
+本机无 sshd（WSL 环境且非 root），因此提供 `toolkit/r_connector/examples/mock_ssh_server.rs`：
+一个基于 `russh` 服务端 API 的 mock SSH 服务端，口令固定 `secret`，收到 exec 请求后按固定规则回显
+（stdout 回 `mock: <指令>`；指令以 `!` 开头则回 stderr 并返回退出码 3），**不执行任何本地命令**。
+
+```text
+cargo run --example mock_ssh_server -- 127.0.0.1:22222     # 终端 1
+RTS_KNOWN_HOSTS=/tmp/kh r_connector conf.txt                 # 终端 2
+```
+
+该方式覆盖：配置解析 → 连接 → 主机密钥 TOFU → 密码认证 → exec 通道 → stdout/stderr/退出码回显 → 汇总行 → 退出码。
+
+此外，`session.rs` 内含基于同一 mock 服务端的进程内集成测试（`cargo test` 自动运行），无需手工干预。
 
 ## 9. 不做（重申）
 
