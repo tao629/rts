@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+log = "0.4.34"
+rpassword = "7.5.4"
+rts-core = { path = "../../base/rts-core" }
+russh = { version = "0.64.1", default-features = false, features = ["flate2", "ring"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }
+
+[dev-dependencies]
+rand = "0.10"
