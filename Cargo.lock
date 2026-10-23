@@ -185,6 +185,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "r_connector"
+version = "0.1.0"
+
+[[package]]
 name = "rts-center"
 version = "0.1.0"
 

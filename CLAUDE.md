@@ -9,6 +9,7 @@
 |----|----|----|
 |公共包|base/rts-core|平台封装的公用功能包，如日志、配置等|
 |服务中心|server/rts-center|收揽平台资源访问接口，通过 REST 服务对其它模块开放|
+|远程连接工具|toolkit/r_connector|FTP/SFTP连接远程，执行用户输入指令|
 
 ### rts-center
 
