@@ -1,17 +1,6 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+//! rts 平台公共包。
+//!
+//! 包含平台封装的公用功能：配置、日志等。
 
 pub mod config;
 pub mod logger;

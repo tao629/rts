@@ -3,9 +3,15 @@ resolver = "3"
 members = ["base/rts-core", "server/rts-center", "toolkit/f_matcher", "toolkit/r_connector"]
 
 [workspace.dependencies]
-ftail = "0.3"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+flate2 = "1"
+log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-log = "0.2"
+tracing-subscriber = { version = "0.3", features = ["chrono"] }
 
 # 发布产物优化：跨 crate 链接期优化 + 单编译单元 + 去符号。
 # 手工 `cargo build --release` 与 scripts/build_release.sh 的发布产物保持一致。
