@@ -1,10 +1,5 @@
+import { PipelineDiagram } from "./pipeline-diagram"
 import { ThemeLogo } from "./theme-logo"
-
-const STAGES = [
-  { label: "receive", desc: "接收" },
-  { label: "transform", desc: "转换" },
-  { label: "sink", desc: "投递" },
-]
 
 /**
  * 登录页左侧深色品牌区：产品定位 + 任务流水线示意 + 服务状态。
@@ -48,33 +43,8 @@ export function BrandPanel() {
         </p>
 
         {/* 任务流水线 */}
-        <div className="relative mt-10 overflow-hidden rounded-card border border-white/10 bg-white/[0.04] p-5 backdrop-blur-sm short-screen:hidden">
-          <span className="rts-sweep pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-brand-300/20 to-transparent" />
-          <div className="relative flex items-center gap-3">
-            {STAGES.map((stage, index) => (
-              <div key={stage.label} className="flex items-center gap-3">
-                <div className="flex-1 rounded-field border border-white/10 bg-panel-900/70 px-3.5 py-3">
-                  <p className="font-mono text-[13px] text-brand-300">
-                    {stage.label}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-400">{stage.desc}</p>
-                </div>
-                {index < STAGES.length - 1 && (
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="size-4 shrink-0 text-brand-400/70"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m9 6 6 6-6 6" />
-                  </svg>
-                )}
-              </div>
-            ))}
-          </div>
+        <div className="relative mt-10 short-screen:hidden">
+          <PipelineDiagram />
         </div>
       </div>
 
