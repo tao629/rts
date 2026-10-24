@@ -3,6 +3,9 @@
 //! 遍历指定目录下的所有 `.txt` / `.csv` 文件（含子目录），按规则文件中的
 //! 关键字规则匹配；一旦某文件命中 1 个关键字即终止该文件的继续匹配；
 //! 输出命中文件的绝对路径与命中行号。
+//!
+//! 目录遍历与文件扫描均为并行执行，但输出顺序与并发度无关：命中清单始终按
+//! 路径字典序输出，告警按路径排序输出，保证多次运行结果完全一致。
 
 mod cli;
 mod rule;
@@ -96,22 +99,46 @@ fn run(cli: Cli) -> ExitCode {
         }
     }
 
-    // 3. 收集待扫描文件（规则文件自身不参与扫描）。
+    // 3. 建立工作线程池（--jobs 1 表示单线程执行）。
+    let pool = match rayon::ThreadPoolBuilder::new()
+        .num_threads(cli.jobs)
+        .build()
+    {
+        Ok(pool) => pool,
+        Err(err) => {
+            eprintln!("错误: 无法创建工作线程池: {err}");
+            return ExitCode::from(EXIT_USAGE);
+        }
+    };
+
+    // 4. 收集待扫描文件（规则文件自身不参与扫描）。
     let exclusions = Exclusions::new(std::slice::from_ref(&rule_path));
-    let (files, issues) = scanner::collect_files(&dir, &exclusions);
+    let (files, issues) = scanner::collect_files(&dir, &exclusions, &pool);
     let mut incomplete = !issues.is_empty();
     for issue in issues {
         eprintln!("警告: {issue}");
     }
 
-    // 4. 逐个文件扫描并输出命中结果。
+    // 5. 并行扫描所有文件。结果按文件顺序收集，顺序与并发度无关。
+    let results = pool.install(|| {
+        use rayon::prelude::*;
+        files
+            .par_iter()
+            .map_init(
+                || rule.matcher(),
+                |matcher, file| (file, scanner::scan_file(file, matcher)),
+            )
+            .collect::<Vec<_>>()
+    });
+
+    // 6. 输出命中结果。
     let stdout = io::stdout();
     let mut writer = BufWriter::new(stdout.lock());
     let mut matched = 0usize;
     let mut broken_pipe = false;
 
-    for file in files {
-        match scanner::scan_file(&file, &rule) {
+    for (file, result) in results {
+        match result {
             Ok(Some(line_no)) => {
                 matched += 1;
                 if writeln!(writer, "{}:{line_no}", file.display()).is_err() {
