@@ -15,6 +15,7 @@ export class AuthApiError extends Error {
 
 const ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   VALIDATION_ERROR: "提交信息有误，请检查后重试",
+  INVALID_CAPTCHA: "验证码错误或已失效，请重新输入",
   INVALID_CREDENTIALS: "用户名或密码错误",
   ACCOUNT_DISABLED: "该账号已被停用，请联系管理员",
   ACCOUNT_LOCKED: "账号已锁定，请稍后再试或联系管理员",

@@ -2,12 +2,14 @@ import { AuthApiError } from "./errors"
 import type {
   AuthApi,
   AuthErrorCode,
+  CaptchaResponse,
   LoginRequest,
   LoginResponse,
 } from "./types"
 
 const ERROR_CODES: AuthErrorCode[] = [
   "VALIDATION_ERROR",
+  "INVALID_CAPTCHA",
   "INVALID_CREDENTIALS",
   "ACCOUNT_DISABLED",
   "ACCOUNT_LOCKED",
@@ -34,7 +36,13 @@ export class HttpAuthApi implements AuthApi {
       response = await fetch(`${this.baseUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
+        body: JSON.stringify({
+          username: request.username,
+          password: request.password,
+          remember: request.remember,
+          captchaId: request.captchaId,
+          captchaCode: request.captchaCode,
+        }),
       })
     } catch {
       throw new AuthApiError("NETWORK_ERROR")
@@ -45,6 +53,27 @@ export class HttpAuthApi implements AuthApi {
     }
 
     return (await response.json()) as LoginResponse
+  }
+
+  /** 获取一次性图形验证码（契约见 spec.md §3.1） */
+  async fetchCaptcha(): Promise<CaptchaResponse> {
+    let response: Response
+    try {
+      response = await fetch(`${this.baseUrl}/auth/captcha`, {
+        method: "GET",
+        headers: { "Cache-Control": "no-store" },
+        // 验证码一次性生效，不允许任何缓存
+        cache: "no-store",
+      })
+    } catch {
+      throw new AuthApiError("NETWORK_ERROR")
+    }
+
+    if (!response.ok) {
+      throw new AuthApiError("SERVER_ERROR", undefined, response.status)
+    }
+
+    return (await response.json()) as CaptchaResponse
   }
 
   async logout(token: string): Promise<void> {

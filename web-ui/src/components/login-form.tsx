@@ -1,10 +1,10 @@
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { AlertCircle, Info, Loader2, LockKeyhole, User } from "lucide-react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
-import { isMockMode, MOCK_CREDENTIALS, toErrorMessage } from "@/api/auth"
+import { authApi, isMockMode, MOCK_CREDENTIALS, toErrorMessage } from "@/api/auth"
 import { useAuth } from "@/auth/auth-context"
 import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { loginSchema, type LoginFormValues } from "@/lib/login-schema"
 import { sanitizeFrom } from "@/lib/safe-redirect"
+import { CaptchaField } from "./captcha-field"
 import { PasswordField } from "./password-field"
 
 export function LoginForm() {
@@ -21,18 +22,58 @@ export function LoginForm() {
   const [searchParams] = useSearchParams()
   const [serverError, setServerError] = useState<string | null>(null)
   const [showResetHint, setShowResetHint] = useState(false)
+  const [captchaId, setCaptchaId] = useState("")
+  const [captchaImage, setCaptchaImage] = useState<string | null>(null)
+  // 初始为 true：首帧即处于取码中，避免短暂展示空验证码
+  const [captchaLoading, setCaptchaLoading] = useState(true)
+  const [captchaError, setCaptchaError] = useState<string | null>(null)
 
   const {
     register,
     control,
     handleSubmit,
     setValue,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     mode: "onSubmit",
-    defaultValues: { username: "", password: "", remember: true },
+    defaultValues: {
+      username: "",
+      password: "",
+      captchaCode: "",
+      remember: true,
+    },
   })
+
+  /** 拉取验证码并更新界面状态 */
+  const loadCaptcha = useCallback(() => {
+    return authApi.fetchCaptcha().then(
+      (captcha) => {
+        setCaptchaId(captcha.captchaId)
+        setCaptchaImage(captcha.image)
+        setCaptchaError(null)
+        setCaptchaLoading(false)
+      },
+      (error: unknown) => {
+        setCaptchaId("")
+        setCaptchaImage(null)
+        setCaptchaError(toErrorMessage(error))
+        setCaptchaLoading(false)
+      },
+    )
+  }, [])
+
+  /** 刷新验证码（用户点击图片 / 登录失败后自动触发） */
+  const refreshCaptcha = useCallback(() => {
+    setCaptchaLoading(true)
+    return loadCaptcha()
+  }, [loadCaptcha])
+
+  // 页面挂载后首次自动获取验证码
+  useEffect(() => {
+    void loadCaptcha()
+  }, [loadCaptcha])
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null)
@@ -41,11 +82,17 @@ export function LoginForm() {
         username: values.username,
         password: values.password,
         remember: values.remember,
+        captchaId,
+        captchaCode: values.captchaCode.trim(),
       })
       navigate(sanitizeFrom(searchParams.get("from")), { replace: true })
     } catch (error) {
       setServerError(toErrorMessage(error))
       setValue("password", "")
+      // 验证码一次性消费，任何登录失败后都需重新取码并清空输入
+      setValue("captchaCode", "")
+      clearErrors("captchaCode")
+      void refreshCaptcha()
     }
   })
 
@@ -117,6 +164,35 @@ export function LoginForm() {
               className="text-xs text-danger-600"
             >
               {errors.password.message}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="captchaCode">验证码</Label>
+          <CaptchaField
+            image={captchaImage}
+            loading={captchaLoading}
+            onRefresh={() => void refreshCaptcha()}
+            disabled={isSubmitting}
+            aria-invalid={errors.captchaCode ? true : undefined}
+            aria-describedby={
+              errors.captchaCode ? "captchaCode-error" : undefined
+            }
+            {...register("captchaCode")}
+          />
+          {errors.captchaCode && (
+            <p
+              id="captchaCode-error"
+              role="alert"
+              className="text-xs text-danger-600"
+            >
+              {errors.captchaCode.message}
+            </p>
+          )}
+          {captchaError && (
+            <p role="alert" className="text-xs text-danger-600">
+              {captchaError}
             </p>
           )}
         </div>
