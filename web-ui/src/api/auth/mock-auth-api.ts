@@ -40,7 +40,7 @@ const CAPTCHA_DELAY_MS = 150
 const CAPTCHA_CHARSET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 const CAPTCHA_LENGTH = 4
 const CAPTCHA_TTL_MS = 5 * 60 * 1000
-const CAPTCHA_WIDTH = 160
+const CAPTCHA_WIDTH = 260
 const CAPTCHA_HEIGHT = 60
 
 /** 验证码答案只保存在 mock 实现内部（模块级存储），前端代码读不到 */
