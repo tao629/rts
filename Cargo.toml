@@ -3,11 +3,19 @@ resolver = "3"
 members = ["base/rts-core", "server/rts-center", "toolkit/f_matcher", "toolkit/r_connector"]
 
 [workspace.dependencies]
+argon2 = "0.6"
+axum = "0.8"
+base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 flate2 = "1"
+jsonwebtoken = "9"
 log = "0.4"
+rand = "0.9"
+rts-core = { path = "base/rts-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-log = "0.2"
