@@ -1,111 +1,162 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import "tailwindcss";
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+/* 视口高度不足时折叠品牌区的次要信息 */
+@custom-variant short-screen (@media (max-height: 640px));
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ------------------------------------------------------------------ *
+ * 设计令牌（Tailwind v4 CSS-first）
+ * ------------------------------------------------------------------ */
+@theme {
+  --font-sans:
+    "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui,
+    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Code", Consolas,
+    monospace;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
+  /* 品牌色 —— 青蓝 */
+  --color-brand-50: #eff9ff;
+  --color-brand-100: #dff3ff;
+  --color-brand-200: #b8e6ff;
+  --color-brand-300: #7dd3fc;
+  --color-brand-400: #38bdf8;
+  --color-brand-500: #0ea5e9;
+  --color-brand-600: #0284c7;
+  --color-brand-700: #0369a1;
+  --color-brand-800: #075985;
+  --color-brand-900: #0c4a6e;
+
+  /* 深色面板 */
+  --color-panel-950: #0b1220;
+  --color-panel-900: #111c33;
+  --color-panel-800: #1b2a47;
+  --color-panel-700: #27395c;
+  --color-panel-600: #3b5280;
+
+  /* 文字与描边 */
+  --color-ink-900: #0f172a;
+  --color-ink-800: #1e293b;
+  --color-ink-700: #334155;
+  --color-ink-500: #64748b;
+  --color-ink-400: #94a3b8;
+  --color-ink-300: #cbd5e1;
+  --color-ink-200: #e2e8f0;
+  --color-ink-100: #f1f5f9;
+  --color-ink-50: #f8fafc;
+
+  /* 语义色 */
+  --color-danger-50: #fef2f2;
+  --color-danger-200: #fecaca;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+  --color-success-500: #10b981;
+  --color-success-50: #ecfdf5;
+
+  --radius-field: 0.5rem;
+  --radius-card: 0.75rem;
+
+  --shadow-panel: 0 24px 60px -24px rgb(15 23 42 / 0.28);
+  --shadow-brand: 0 12px 32px -12px rgb(14 165 233 / 0.55);
+}
+
+/* ------------------------------------------------------------------ *
+ * 基础层
+ * ------------------------------------------------------------------ */
+@layer base {
+  html {
+    /* 右侧表单区固定浅色，避免系统暗色偏好下原生控件反色 */
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-ink-100 text-ink-900 font-sans antialiased;
+    margin: 0;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-200);
+    color: var(--color-ink-900);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+/* ------------------------------------------------------------------ *
+ * 品牌区动效
+ * ------------------------------------------------------------------ */
+@keyframes rts-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
   }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+  50% {
+    transform: translate3d(5%, -7%, 0) scale(1.15);
+    opacity: 0.8;
   }
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+@keyframes rts-sweep {
+  0% {
+    transform: translateX(-40%);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(140%);
+    opacity: 0;
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+@keyframes rts-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
   }
 }
-p {
-  margin: 0;
+
+@keyframes rts-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+.rts-drift {
+  animation: rts-drift 14s ease-in-out infinite;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.rts-sweep {
+  animation: rts-sweep 3.6s ease-in-out infinite;
+}
+
+.rts-blink {
+  animation: rts-blink 2.4s ease-in-out infinite;
+}
+
+.rts-rise {
+  animation: rts-rise 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rts-drift,
+  .rts-sweep,
+  .rts-blink,
+  .rts-rise {
+    animation: none !important;
+  }
 }
