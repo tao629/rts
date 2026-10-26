@@ -40,18 +40,19 @@ export function CaptchaField({
   )
 
   return (
-    <div className="flex items-start gap-3">
+    // 两列等宽网格：验证码图片与输入框宽度保持一致
+    <div className="grid grid-cols-2 items-start gap-3">
       <Input
         id="captchaCode"
         autoComplete="off"
         inputMode="text"
         maxLength={8}
         placeholder="请输入图中字符"
-        className={cn("min-w-0 flex-1", className)}
+        className={cn("w-full", className)}
         disabled={disabled || loading}
         {...props}
       />
-      <div className="h-15 w-40 shrink-0 overflow-hidden rounded-field border border-ink-200 bg-white">
+      <div className="h-15 w-full overflow-hidden rounded-field border border-ink-200 bg-white">
         {loading || !image ? (
           <span className="flex h-full w-full items-center justify-center bg-ink-50 text-ink-400">
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />

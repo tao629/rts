@@ -1,7 +1,7 @@
 //! 图形验证码生成。
 //!
 //! 自绘 SVG，不依赖任何图形处理 crate（spec §2 与 intent 的约束）：
-//! 生成 4 位字符答案 → 渲染成 160×60 的 SVG → base64 编码为 data URI 随 JSON 返回。
+//! 生成 4 位字符答案 → 渲染成 260×60 的 SVG → base64 编码为 data URI 随 JSON 返回。
 //!
 //! 安全约定：
 //! - **答案只存在于服务端内存**，绝不进入响应体，也绝不写进日志；
@@ -18,7 +18,10 @@ pub const CAPTCHA_CHARSET: &[u8] = b"23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 /// 验证码长度（字符数）。
 pub const CAPTCHA_LENGTH: usize = 4;
 /// 验证码图片宽度（像素）。
-pub const CAPTCHA_WIDTH: u32 = 160;
+///
+/// 取 260 是为了与登录页里的验证码输入框等宽：图片按 `object-contain` 缩放后
+/// 恰好铺满输入框宽度，字符不会被拉伸变形。
+pub const CAPTCHA_WIDTH: u32 = 260;
 /// 验证码图片高度（像素）。
 pub const CAPTCHA_HEIGHT: u32 = 60;
 

@@ -79,7 +79,7 @@ POST /api/v1/auth/logout      # Authorization: Bearer <token> → 204
 ### mock 模式下的验证码
 
 `VITE_API_MODE=mock` 时没有后端，前端会在 `MockAuthApi` 内部按同一规格生成验证码
-（同字符集、4 位、160×60 SVG、带噪点与干扰线），答案只保存在 mock 实现内部的内存表里，
+（同字符集、4 位、260×60 SVG、带噪点与干扰线），答案只保存在 mock 实现内部的内存表里，
 前端页面读不到。因此 mock 模式下也需要照着图片输入验证码才能登录，
 这与 real 模式的交互完全一致。
 
