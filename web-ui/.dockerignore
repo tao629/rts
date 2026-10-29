@@ -1,0 +1,26 @@
+# 构建上下文收敛：以下内容不进镜像
+
+# 依赖与产物
+node_modules
+dist
+dist-ssr
+
+# 本地开发配置（含本地路径/开关，不进镜像）
+.env
+.env.local
+.env.*.local
+
+# 版本控制与编辑器
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# 日志
+logs
+*.log
+
+# 镜像自身的编排文件
+Dockerfile
+.dockerignore

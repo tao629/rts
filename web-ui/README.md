@@ -16,6 +16,7 @@ RTS 搬运工 Web 控制台前端。承载平台的任务调度与链路监控�
 | 路由 | react-router-dom 7 |
 | 表单 | react-hook-form + zod 4 |
 | 测试 | bun test（内置，无额外依赖） |
+| 部署 | Docker 多阶段构建（bun 构建 → nginx 托管） |
 
 ## 快速开始
 
@@ -109,3 +110,87 @@ src/
 - 勾选「记住我」→ 凭证写入 `localStorage`；未勾选 → 写入 `sessionStorage`。
 - 读取时校验 `expiresAt`，过期自动清理并视为未登录。
 - 未登录访问受保护页面会重定向到 `/login?from=<原路径>`，登录成功后跳回。
+
+## 容器化
+
+前端打包为 Docker 镜像：`bun` 构建产物 → `nginx` 托管，提供 SPA 路由回退、
+静态资源缓存与 `/api` 反向代理。
+
+### 构建
+
+```bash
+cd web-ui
+docker build -t rts-web-ui:latest .
+# 或
+bun run docker:build
+```
+
+镜像默认按 **real 模式**打包（前端请求真实后端）。构建参数（Vite 在构建期把
+`VITE_` 前缀变量内联进产物，**改完必须重新构建**）：
+
+| 构建参数 | 默认值 | 说明 |
+|---|---|---|
+| `--build-arg VITE_API_MODE=real\|mock` | `real` | `real` 请求真实后端；`mock` 用前端内置 mock |
+| `--build-arg VITE_API_BASE_URL=/api/v1` | `/api/v1` | 前端请求的接口基址 |
+
+例：打一个不依赖后端的 mock 包 → `docker build --build-arg VITE_API_MODE=mock -t rts-web-ui:mock .`
+
+### 运行
+
+后端 `rts-center` 需要先在**宿主**上启动，并且监听地址要放开到回环地址之外
+（默认只听 `127.0.0.1`，容器访问不到）：
+
+```bash
+export RTS_CENTER_ADDR=0.0.0.0:8080
+export RTS_AUTH_USERS='admin:<口令>:系统管理员:super_admin'
+export RTS_JWT_SECRET="$(openssl rand -hex 32)"
+cargo run -p rts-center
+```
+
+> 口令与密钥只从环境变量注入，**不要写进仓库**。
+
+再启动前端容器：
+
+```bash
+docker run -d --name rts-web-ui -p 18080:8080 \
+  -e API_UPSTREAM=http://host.docker.internal:8080 \
+  rts-web-ui:latest
+```
+
+浏览器访问 <http://127.0.0.1:18080/>。
+
+> **宿主端口别跟后端撞车**：后端已经占用 `8080` 时，`-p 8080:8080` 的端口转发会**静默失效**
+> （容器能起、`docker port` 却查不到映射），所以上面用 `18080`。
+> 换端口后记得同步改浏览器访问地址。
+
+| 运行时环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `API_UPSTREAM` | `http://host.docker.internal:8080` | `/api` 反代的上游地址 |
+
+后端与前端同在容器网络里时，把上游改成后端服务名即可，例如
+`-e API_UPSTREAM=http://rts-center:8080`；Linux 原生 Docker 上访问宿主需加
+`--add-host=host.docker.internal:host-gateway`。
+
+### 容器行为
+
+| 路径 | 行为 |
+|---|---|
+| `/`、`/login` 等前端路由 | SPA history fallback，返回 `index.html` |
+| `/assets/*` | 带内容 hash，`Cache-Control: public, max-age=31536000, immutable` |
+| `/index.html` | `Cache-Control: no-cache`，保证发版后拿到新资源 |
+| `/api/*` | 反代到 `API_UPSTREAM`，透传 `Host` / `X-Real-IP` / `X-Forwarded-*` |
+| `/healthz` | 健康检查，容器 `HEALTHCHECK` 亦使用该端点 |
+
+容器以**非 root**（`nginx` 用户）身份运行，容器内监听 **8080**，宿主端口由
+`-p` 决定。
+
+### 目录结构补充
+
+```
+web-ui/
+├─ Dockerfile          # 多阶段构建
+├─ .dockerignore       # 构建上下文收敛
+└─ docker/
+   ├─ nginx.conf       # SPA 回退 / 缓存 / gzip / /api 反代
+   └─ entrypoint.sh    # 渲染上游地址 → nginx -t → 前台启动
+```
