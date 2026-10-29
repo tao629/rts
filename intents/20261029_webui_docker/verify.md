@@ -2,6 +2,7 @@
 
 > 依据 [`spec.md`](./spec.md) §7 验收标准逐条核对。验证日期：2026-10-29。
 > 开发分支：`feature/webui-docker`（worktree: `.claude/worktrees/webui-docker/`）
+> PR：[#10](https://github.com/tao629/rts/pull/10)
 
 ## 0. 验证环境
 
