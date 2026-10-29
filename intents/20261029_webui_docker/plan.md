@@ -12,7 +12,7 @@
 | 4 | `web-ui/Dockerfile` | 新增 | 多阶段构建（bun 构建 → nginx 托管），非 root、8080 端口、HEALTHCHECK |
 | 5 | `web-ui/package.json` | 修改 | 增加 `docker:build` / `docker:run` script |
 | 6 | `web-ui/README.md` | 修改 | 追加「容器化」章节：构建、运行、后端依赖、常见问题 |
-| 7 | `sdlc/20261029_webui_docker/verify.md` | 新增 | 验证记录（构建日志要点、冒烟结果、截图/结论） |
+| 7 | `intents/20261029_webui_docker/verify.md` | 新增 | 验证记录（构建日志要点、冒烟结果、截图/结论） |
 
 依赖关系：`1` → `4`（构建上下文）；`2` + `3` → `4`（运行期）。
 
@@ -101,7 +101,7 @@ location /api/ {
 5. 停掉后端再登录 → 出现网络错误提示，无白屏。
 
 ### 4.3 记录
-结果写入 `sdlc/20261029_webui_docker/verify.md`。
+结果写入 `intents/20261029_webui_docker/verify.md`。
 
 ## 5. 交付
 

@@ -32,7 +32,7 @@ Author: zhtao. 状态：accepted
 | `web-ui/docker/entrypoint.sh` | 新增（可选） | 渲染上游地址、非 root 启动 nginx |
 | `web-ui/README.md` | 修改 | 补充容器化构建与运行说明 |
 | `web-ui/package.json` | 修改（可选） | 增加 `docker:build` / `docker:run` 等便捷 script |
-| `sdlc/20261029_webui_docker/` | 新增 | 立项 / 设计 / 计划 / 验证记录 |
+| `intents/20261029_webui_docker/` | 新增 | 立项 / 设计 / 计划 / 验证记录 |
 
 **明确不改动**：`server/rts-center` 源码。本次只交付前端镜像，后端在宿主上以普通进程运行，仅需把 `RTS_CENTER_ADDR` 放开到 `0.0.0.0:8080` 才能被容器访问。
 

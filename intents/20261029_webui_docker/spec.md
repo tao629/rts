@@ -16,7 +16,7 @@
 | `web-ui/docker/entrypoint.sh` | 新增 | 渲染上游地址并以非 root 身份启动 nginx |
 | `web-ui/README.md` | 修改 | 追加「容器化」章节 |
 | `web-ui/package.json` | 修改 | 追加 `docker:build` / `docker:run` script |
-| `sdlc/20261029_webui_docker/verify.md` | 新增 | 验证记录 |
+| `intents/20261029_webui_docker/verify.md` | 新增 | 验证记录 |
 
 ## 3. 镜像规格
 
