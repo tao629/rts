@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "test": "bun test",
     "typecheck": "tsc -b --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "docker:build": "docker build -t rts-web-ui:latest .",
+    "docker:run": "docker run -d --name rts-web-ui -p 18080:8080 rts-web-ui:latest"
   },
   "dependencies": {
     "@hookform/resolvers": "^6.0.0",
