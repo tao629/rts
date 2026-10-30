@@ -41,6 +41,19 @@ bun run typecheck  # tsc -b --noEmit
 bun run test       # bun test
 ```
 
+### 数据库脚本
+`scripts/db_caller.sh` 从环境文件（默认仓库根 `.env`）读取 `DATABASE_URL`，连库执行 SQL 文件：
+
+```bash
+scripts/db_caller.sh path/to/migrate.sql     # 交互式确认后执行
+scripts/db_caller.sh --dry-run migrate.sql   # 只打印将要执行的命令（口令脱敏），不连库
+scripts/db_caller.sh --yes a.sql b.sql       # 跳过确认，按顺序执行多个文件
+```
+
+- 连接串来源优先级：`--url` > 进程环境变量 `DATABASE_URL` > 环境文件；
+- 支持 `postgresql/postgres`、`mysql/mariadb`、`sqlite`，需本机装对应客户端（`psql`/`mysql`/`sqlite3`）；
+- 口令从命令行剥离后放进 `PGPASSWORD`/`MYSQL_PWD`，命令行与日志里都不出现口令。
+
 
 ## 开发流程：立项 → 开发 → 验证 → 交付 → 发布
 新需求的立项产物统一放 `intents/<yyyyMMdd>_<slug>/` 目录（`sdlc/` 下是历史遗留目录，保持原样不迁移）；
