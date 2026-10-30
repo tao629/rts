@@ -91,6 +91,22 @@ bun run test && bun run lint && bun run typecheck
   用 Python `urllib` 直接调 `https://api.github.com/repos/tao629/rts/pulls`。
 - PR 描述末尾附 `🤖 Generated with [Claude Code](https://claude.com/claude-code)`。
 
+#### 合入 main 与删分支：先确认，再动远端
+本仓**没有配置 CI**，PR 上通常也没有 review 记录，因此「合入 main」「删除远端分支」这类
+**远端写操作会被 Claude Code 的权限拦截判为"未经评审就合并"**，需要向用户做一次**显式确认**
+才会放行——对话里一句"合并 PR #N"不足以满足它，别反复重试。
+
+可行流程：
+
+1. 本地合并：`git merge --no-ff origin/<branch>`，提交信息写成
+   `Merge pull request #N from <owner>/<branch>`（GitHub 据此自动把 PR 标记为 merged）；
+2. 推送前跑完相关测试；
+3. **向用户明确确认**后再 `git push origin main`；
+4. 删除分支同样先确认范围（只删本地 / 只删远端 / 都删）。两个分支的提交都已在 main 上时，
+   `git branch -d`（安全模式，未合入会拒绝）即可删本地，`git push origin --delete <branch>` 删远端。
+
+本地 `main` 保持只读：不切分支、不暂存、不提交，改动一律在 worktree 里的分支上做。
+
 ### 发布
 两条发布路径：
 
