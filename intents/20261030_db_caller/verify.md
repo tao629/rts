@@ -1,6 +1,8 @@
 # db_caller.sh 验证记录
 
 > 需求：新增 `scripts/db_caller.sh`，从 `.env` 读取 `DATABASE_URL`，连接数据库并执行传入的 SQL 文件。
+>
+> PR: #13 https://github.com/tao629/rts/pull/13 （分支 `feature/db-caller`）
 
 ## 环境
 
