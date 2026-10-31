@@ -43,7 +43,7 @@ bun run test       # bun test
 
 
 ## 开发流程：立项 → 开发 → 验证 → 交付 → 发布
-新需求的立项产物统一放 `intents/<yyyyMMdd>_<slug>/` 目录（`sdlc/` 下是历史遗留目录，保持原样不迁移）；
+新需求的立项产物统一放 `intents/<yyyyMMdd>_<slug>/` 目录（`intents/` 下是历史遗留目录，保持原样不迁移）；
 从 `立项` 环节开始，开发环节在独立 `worktree` 中进行，本地验证通过后进行分支提交并创建PR
 
 ### 立项
@@ -60,7 +60,9 @@ intents/20261015_华为核心网审计日志/
 代码只是它的实现。`spec.md` 定稿后再写 `plan.md`（改动清单、顺序、风险、验证方式）。
 
 ### 开发
-`plan.md`确认后进入开发环节，在独立的 `worktree (.claude/worktrees/<slug>/)` 下进行，禁止在主仓开发，主仓只用于拉取和只读查看，不切分支、不暂存、不提交
+`plan.md`确认后进入开发环节，未确认不开发.
+* 在独立的 `worktree (.claude/worktrees/<slug>/)` 下进行，禁止在主仓开发，主仓只用于拉取和只读查看，不切分支、不暂存、不提交
+* 数据库操作优先执行, 使用 `scripts/database` 脚本 
 
 分支命名 `feature/<slug>`（先例：`feature/login-captcha`、`feature/login-page-spa`、
 `feature/captcha-width`、`feature/f-matcher-perf`、`feature/webui-docker`）。
