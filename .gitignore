@@ -7,3 +7,10 @@
 .env
 .env.*
 !.env.example
+
+# Python / uv 工具（scripts/database）
+scripts/database/.venv/
+scripts/database/backup/
+scripts/database/.pytest_cache/
+__pycache__/
+*.py[cod]
