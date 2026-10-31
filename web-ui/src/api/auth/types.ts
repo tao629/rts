@@ -1,6 +1,8 @@
 /**
- * 认证接口契约（与 spec.md 第 4 节一致）
- * 后端 rts-center 实现该契约后，前端仅需把 VITE_API_MODE 切到 real 即可对接。
+ * 认证接口契约（与 spec.md §3 一致）
+ *
+ * 后端 rts-center 是这份契约的唯一实现：验证码、登录、登出、确认登录态
+ * 全部由服务端裁决，前端不再内置任何模拟实现。
  */
 
 export interface AuthUser {
@@ -38,11 +40,20 @@ export interface LoginResponse {
   user: AuthUser
 }
 
+/**
+ * 后端错误码全集（spec.md §3.4）。
+ *
+ * `NETWORK_ERROR` 是唯一的客户端错误码：请求压根没发出去时用它兜底。
+ */
 export type AuthErrorCode =
   | "VALIDATION_ERROR"
   | "INVALID_CAPTCHA"
   | "INVALID_CREDENTIALS"
+  | "TOKEN_INVALID"
   | "ACCOUNT_DISABLED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "USERNAME_TAKEN"
   | "ACCOUNT_LOCKED"
   | "RATE_LIMITED"
   | "NETWORK_ERROR"
@@ -53,4 +64,6 @@ export interface AuthApi {
   logout(token: string): Promise<void>
   /** 获取一次性图形验证码 */
   fetchCaptcha(): Promise<CaptchaResponse>
+  /** 用令牌换回当前用户信息；令牌无效时抛 TOKEN_INVALID */
+  fetchMe(token: string): Promise<AuthUser>
 }

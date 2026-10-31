@@ -16,11 +16,9 @@ FROM oven/bun:1.3.14-alpine AS builder
 
 WORKDIR /app
 
-# Vite 在构建期把 VITE_ 前缀的变量内联进产物：改这两个值必须重新构建镜像
-ARG VITE_API_MODE=real
+# Vite 在构建期把 VITE_ 前缀的变量内联进产物：改这个值必须重新构建镜像
 ARG VITE_API_BASE_URL=/api/v1
-ENV VITE_API_MODE=${VITE_API_MODE} \
-    VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
 # 依赖层单独拆开：只有 lockfile 变化才会让这一层失效
 COPY package.json bun.lock ./

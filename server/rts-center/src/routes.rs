@@ -1,15 +1,16 @@
 //! 路由装配。
 //!
-//! 接口契约见 `sdlc/20261025_登录验证码/spec.md` §3，服务基址为 `/api/v1`。
+//! 接口契约见 `intents/20261031_ui-login-real-backend/spec.md` §3，服务基址为 `/api/v1`。
 
 use std::sync::Arc;
 
 use axum::Json;
 use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 use chrono::Utc;
 use serde::Serialize;
 
+use crate::admin;
 use crate::auth;
 use crate::state::AppState;
 
@@ -28,6 +29,19 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/auth/captcha", get(auth::captcha_handler))
         .route("/api/v1/auth/login", post(auth::login_handler))
         .route("/api/v1/auth/logout", post(auth::logout_handler))
+        .route("/api/v1/auth/me", get(auth::me_handler))
+        .route(
+            "/api/v1/admin/users",
+            post(admin::create_user_handler).get(admin::list_users_handler),
+        )
+        .route(
+            "/api/v1/admin/users/{username}/status",
+            patch(admin::update_status_handler),
+        )
+        .route(
+            "/api/v1/admin/users/{username}/password",
+            post(admin::reset_password_handler),
+        )
         .route("/api/v1/health", get(health_handler))
         .with_state(state)
 }

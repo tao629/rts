@@ -1,4 +1,4 @@
-//! 认证接口：取验证码、登录、登出。
+//! 认证接口：取验证码、登录、登出、确认登录态。
 //!
 //! 登录的校验顺序是本模块的核心（spec §1）：
 //! **验证码 → 口令 → 失败锁定**。
@@ -8,6 +8,8 @@
 //! 2. 验证码先校验可以保证"账号不存在"与"口令错误"的对外表现完全一致，
 //!    不会因为先查账号再判验证码而泄露账号是否存在。
 
+pub mod bearer;
+pub mod db;
 pub mod guard;
 pub mod token;
 pub mod users;
@@ -241,11 +243,20 @@ pub async fn login_handler(
         }
     }
 
-    // ⑤ 口令校验。账号不存在时也走一次等价的 argon2 运算，
+    // ⑤ 取账号。数据库出错时返回 500 而不是"账号不存在"：
+    //    把服务端故障说成认证失败，会让运维分不清是库挂了还是口令错了。
+    let record = match state.find_account(username).await {
+        Ok(record) => record,
+        Err(error) => {
+            tracing::error!(username = %username, error = %error, "读取账号失败");
+            return Err(ApiError::Server("账号服务暂不可用".to_owned()));
+        }
+    };
+
+    // ⑥ 口令校验。账号不存在时也走一次等价的 argon2 运算，
     //    让"账号不存在"与"口令错误"的耗时一致，避免被用来枚举账号。
-    let record = users::find_user(&state.users, username);
     let authenticated = match record {
-        Some(record) => users::verify_password(record, password),
+        Some(ref record) => users::verify_password(record, password),
         None => state.verify_dummy_password(password),
     };
 
@@ -268,13 +279,20 @@ pub async fn login_handler(
 
     let record = record.expect("口令校验通过时账号必然存在");
 
+    // ⑦ 停用账号：口令正确才提示"已停用"，避免不掌握口令的人
+    //    靠这个错误码枚举出账号的存在与状态。
+    if record.status == users::AccountStatus::Disabled {
+        tracing::warn!(username = %username, ip = %client_ip.0, "账号已停用，拒绝登录");
+        return Err(ApiError::AccountDisabled);
+    }
+
     // 登录成功清零失败计数。
     {
         let mut login_guard = state.guard.lock().await;
         login_guard.reset(&lock_key);
     }
 
-    // ⑥ 签发令牌。
+    // ⑧ 签发令牌。
     let ttl = if request.remember {
         Duration::hours(24)
     } else {
@@ -307,4 +325,36 @@ pub async fn login_handler(
 /// 客户端本地清理凭证即可；接口恒定返回 204，失败也不影响前端登出。
 pub async fn logout_handler() -> axum::http::StatusCode {
     axum::http::StatusCode::NO_CONTENT
+}
+
+/// `GET /api/v1/auth/me`：用令牌换回当前用户信息。
+///
+/// 前端在刷新页面时用它确认"登录态还有效"——登录态由服务端裁决，
+/// 而不是浏览器自己说了算。响应体与登录响应的 `user` 同构，
+/// 前端可以直接用它刷新本地会话里的用户信息。
+pub async fn me_handler(
+    State(state): State<Arc<AppState>>,
+    bearer: bearer::BearerToken,
+) -> Result<Json<UserInfo>, ApiError> {
+    let claims = bearer::authenticate(&state.config.jwt_secret, &bearer.0)?;
+
+    // 回库确认账号仍然存在且启用：停用即时生效，已签发的令牌也随之作废。
+    let record = match state.find_account(&claims.username).await {
+        Ok(Some(record)) => record,
+        Ok(None) => {
+            tracing::warn!(username = %claims.username, "令牌对应的账号已不存在");
+            return Err(ApiError::token_invalid("令牌无效或已过期"));
+        }
+        Err(error) => {
+            tracing::error!(username = %claims.username, error = %error, "读取账号失败");
+            return Err(ApiError::Server("账号服务暂不可用".to_owned()));
+        }
+    };
+
+    if record.status == users::AccountStatus::Disabled {
+        tracing::warn!(username = %claims.username, "账号已停用，令牌失效");
+        return Err(ApiError::AccountDisabled);
+    }
+
+    Ok(Json(UserInfo::from(&record.user)))
 }

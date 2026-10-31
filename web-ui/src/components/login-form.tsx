@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { AlertCircle, Info, Loader2, LockKeyhole, User } from "lucide-react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
-import { authApi, isMockMode, MOCK_CREDENTIALS, toErrorMessage } from "@/api/auth"
+import { authApi, toErrorMessage } from "@/api/auth"
 import { useAuth } from "@/auth/auth-context"
 import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -256,22 +256,6 @@ export function LoginForm() {
           )}
         </Button>
       </form>
-
-      {isMockMode && (
-        <div className="mt-8 rounded-card border border-dashed border-ink-200 bg-ink-50/70 p-4">
-          <p className="text-xs font-medium text-ink-600">演示账号（mock 模式）</p>
-          <ul className="mt-2 space-y-1">
-            {MOCK_CREDENTIALS.map((credential) => (
-              <li
-                key={credential.username}
-                className="font-mono text-xs text-ink-500"
-              >
-                {credential.username} / {credential.password}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       <p className="mt-6 text-center text-xs text-ink-400">
         RTS 搬运工 · 内部系统，请勿外传凭证

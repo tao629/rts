@@ -2,9 +2,9 @@
 
 RTS 搬运工 Web 控制台前端。承载平台的任务调度与链路监控界面。
 
-当前版本交付 **登录页 + 路由守卫 + 占位首页**，认证接口以 mock 实现，接口契约见
-`sdlc/20261024_登录页SPA设计/spec.md`；登录验证码的扩展契约见
-`sdlc/20261025_登录验证码/spec.md`。
+当前版本交付 **登录页 + 路由守卫 + 占位首页**。认证走**真实后端 `rts-center`**
+（图形验证码 + 登录 + 登出 + 确认登录态），前端不再内置任何模拟实现；
+接口契约见 `intents/20261031_ui-login-real-backend/spec.md`。
 
 ## 技术栈
 
@@ -28,29 +28,32 @@ bun run lint       # oxlint
 bun run test       # 单元测试
 ```
 
-## 演示账号（mock 模式）
+## 联调真实后端
 
-| 用户名 | 密码 | 角色 |
-|-------|-----|-----|
-| `admin` | `Admin@123` | super_admin |
-| `operator` | `Operator@123` | operator |
+前端**始终**请求真实后端，没有模式开关。先起后端（账号在数据库里，
+建表与开户见 `server/rts-center/README.md`），再起前端：
 
-> mock 模式同样需要填写图形验证码，请照着登录页上的图片输入。
+```bash
+# 仓库根目录：起后端
+export DATABASE_URL='postgresql://用户:口令@主机:5432/库名'
+export RTS_JWT_SECRET="$(openssl rand -hex 32)"
+cargo run -p rts-center
 
-## 切换真实后端
+# web-ui/：起前端（/api 自动代理到后端）
+bun run dev
+```
 
-复制 `.env.example` 为 `.env.local` 并修改：
+前端始终**同源**请求 `/api/v1`：开发期由 vite dev server 代理，部署期由 nginx 反代，
+因此前端不需要处理 CORS。需要换后端地址时复制 `.env.example` 为 `.env.local`：
 
 ```ini
-VITE_API_MODE=real
 VITE_API_BASE_URL=/api/v1
-# 开发期把 /api 代理到后端
+# 仅开发期：vite 把 /api 代理到后端，默认 http://127.0.0.1:8080
 VITE_API_TARGET=http://127.0.0.1:8080
 ```
 
-`VITE_API_MODE=mock`（默认）时走前端内置实现，`real` 时走 `fetch` 请求后端，
-页面代码不感知差异。real 模式下的账号由后端通过 `RTS_AUTH_USERS` 环境变量注入，
-前端不保存任何真实口令，配置方式见 `server/rts-center/README.md`。接口契约：
+账号由后端从 `auth_user` 表读取，前端不保存任何真实口令。
+接口契约：
 
 ```
 GET /api/v1/auth/captcha
@@ -63,7 +66,17 @@ POST /api/v1/auth/login
   → 4xx { "code": "INVALID_CAPTCHA" | "INVALID_CREDENTIALS" | "ACCOUNT_DISABLED" | "ACCOUNT_LOCKED" | "RATE_LIMITED" | "VALIDATION_ERROR", "message": "..." }
 
 POST /api/v1/auth/logout      # Authorization: Bearer <token> → 204
+
+GET /api/v1/auth/me           # Authorization: Bearer <token> → 200 { id, username, displayName, roles }
 ```
+
+### 登录态由后端裁决
+
+刷新页面时，前端拿本地存的令牌调 `GET /auth/me` 换一次用户信息：
+
+- 200 → 用后端返回的用户信息刷新本地会话；
+- 401 `TOKEN_INVALID` / 403 `ACCOUNT_DISABLED` → 清理本地凭证，按未登录处理；
+- 网络错误 → **保留**本地会话（网络抖动不该把人踢出登录态）。
 
 ### 验证码说明
 
@@ -77,18 +90,11 @@ POST /api/v1/auth/logout      # Authorization: Bearer <token> → 204
 - 前端行为：页面挂载自动取码，点击图片刷新（支持 Enter/Space 键），任何一次登录失败后
   自动刷新验证码并清空输入框。
 
-### mock 模式下的验证码
-
-`VITE_API_MODE=mock` 时没有后端，前端会在 `MockAuthApi` 内部按同一规格生成验证码
-（同字符集、4 位、260×60 SVG、带噪点与干扰线），答案只保存在 mock 实现内部的内存表里，
-前端页面读不到。因此 mock 模式下也需要照着图片输入验证码才能登录，
-这与 real 模式的交互完全一致。
-
 ## 目录结构
 
 ```
 src/
-├─ api/auth/         认证接口契约、mock 实现、http 实现、模式切换
+├─ api/auth/         认证接口契约与 http 实现
 ├─ auth/             登录态存取、AuthProvider、路由守卫
 ├─ components/
 │  ├─ ui/            shadcn 风格基础件（button/input/label/checkbox/alert）
@@ -110,6 +116,8 @@ src/
 - 勾选「记住我」→ 凭证写入 `localStorage`；未勾选 → 写入 `sessionStorage`。
 - 读取时校验 `expiresAt`，过期自动清理并视为未登录。
 - 未登录访问受保护页面会重定向到 `/login?from=<原路径>`，登录成功后跳回。
+- 页面挂载时向后端 `GET /auth/me` 确认登录态：令牌失效就清凭证回登录页；
+  网络故障则保留本地登录态（详见上文「登录态由后端裁决」）。
 
 ## 容器化
 
@@ -125,15 +133,12 @@ docker build -t rts-web-ui:latest .
 bun run docker:build
 ```
 
-镜像默认按 **real 模式**打包（前端请求真实后端）。构建参数（Vite 在构建期把
-`VITE_` 前缀变量内联进产物，**改完必须重新构建**）：
+镜像默认请求**真实后端**。构建参数（Vite 在构建期把 `VITE_` 前缀变量内联进产物，
+**改完必须重新构建**）：
 
 | 构建参数 | 默认值 | 说明 |
 |---|---|---|
-| `--build-arg VITE_API_MODE=real\|mock` | `real` | `real` 请求真实后端；`mock` 用前端内置 mock |
 | `--build-arg VITE_API_BASE_URL=/api/v1` | `/api/v1` | 前端请求的接口基址 |
-
-例：打一个不依赖后端的 mock 包 → `docker build --build-arg VITE_API_MODE=mock -t rts-web-ui:mock .`
 
 ### 运行
 
@@ -142,7 +147,7 @@ bun run docker:build
 
 ```bash
 export RTS_CENTER_ADDR=0.0.0.0:8080
-export RTS_AUTH_USERS='admin:<口令>:系统管理员:super_admin'
+export DATABASE_URL='postgresql://用户:口令@主机:5432/库名'
 export RTS_JWT_SECRET="$(openssl rand -hex 32)"
 cargo run -p rts-center
 ```
