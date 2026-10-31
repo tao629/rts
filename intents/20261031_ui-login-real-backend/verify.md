@@ -239,4 +239,5 @@ INFO rts_center::admin: 账号管理：列出账号 actor=e2e_root_9058f9bb coun
 | 项 | 值 |
 |----|-----|
 | 分支 | `feature/ui-login-real-backend` |
-| PR 编号 | *（建 PR 后回填）* |
+| PR 编号 | **#16** —— https://github.com/tao629/rts/pull/16 |
+| 提交 | `6b0dd5b` feat(auth): UI 登录验证对接 rts-center，账号改由数据库承载 |
