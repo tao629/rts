@@ -12,6 +12,12 @@ uv run db_caller.py --dry-run sql/001_example.sql    # 预演：只切分打印�
 uv run db_caller.py sql/001_example.sql               # 执行
 ```
 
+在**仓库根目录**调用时用 `--directory`（此时工作目录变成 `scripts/database`，脚本路径相对它写）：
+
+```bash
+uv run --directory scripts/database db_caller.py --dry-run sql/001_example.sql
+```
+
 连接串来自仓库根目录的 `.env`（工具会从自身所在目录逐级向上查找 `.env`）：
 
 ```dotenv

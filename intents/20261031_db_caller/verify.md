@@ -2,7 +2,7 @@
 
 对应 `intent.md`（finalize）→ `spec.md`（已评审）→ `plan.md`。本文件记录**实测**的命令与结果。
 
-> PR：待回填（分支 `feature/db-caller-python`）
+> PR：#14 https://github.com/tao629/rts/pull/14 （分支 `feature/db-caller-python`）
 
 ## 环境
 
@@ -256,4 +256,4 @@ spec.md 的验收标准（§10 的 7 项）全部实测通过：预演不连库�
 失败整单回滚、幂等跳过与冲突报错、`--force` 可重跑、执行前备份 + manifest、
 日志无明文口令、单元测试全绿。验证用到的临时 schema 已清理，`rts` 库 `public` schema 未受影响。
 
-可交付。PR 编号待建仓后回填。
+可交付。PR：#14 https://github.com/tao629/rts/pull/14
