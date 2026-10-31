@@ -103,7 +103,7 @@ bun run test && bun run lint && bun run typecheck
 本地 `main` 保持只读：不切分支、不暂存、不提交，改动一律在 worktree 里的分支上做。
 
 ### 发布
-两条发布路径：
+两条发布路径：  
 
 - **`toolkit/f_matcher`（二进制包）**：`scripts/build_release.sh` 编译 musl 静态二进制
   （`x86_64-unknown-linux-musl` / `aarch64-unknown-linux-musl`），组装产物目录、打 tar.gz 并生成
@@ -121,8 +121,9 @@ bun run test && bun run lint && bun run typecheck
   注意：宿主 `-p` 端口**不能与后端同端口**，否则端口转发会静默失效（容器起得来但 `docker port` 查不到映射）。
 
 
-## 全局约定
-- **凭据不入库**：口令、签名密钥一律由环境变量注入，仓库里不出现任何口令/密钥字面量；
-  测试里的口令也改为运行时随机生成。日志与错误信息里不得出现口令、请求体原文、验证码答案。
-- **注释与文档用中文**，公开项带 `///` 文档注释，模块顶部用 `//!` 说明职责与设计取舍。
-- `.env` 已被 `.gitignore` 忽略；需要示例配置时提交 `.env.example`。
+## 数据库操作规范
+
+### 查询
+
+### 变更
+任何涉及表的增删、表结构修改等DDL操作，都使用 `dba-toolkit` 技能
