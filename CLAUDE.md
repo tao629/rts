@@ -43,11 +43,11 @@ bun run test       # bun test
 
 
 ## 开发流程：立项 → 开发 → 验证 → 交付 → 发布
-新需求的立项产物统一放 `intents/<yyyyMMdd>_<slug>/` 目录（`intents/` 下是历史遗留目录，保持原样不迁移）；
+- 流程开始前必须先建立目录 `intents/<yyyyMMdd>_<slug>/`，后续各个环件输出物统一放此目录
 从 `立项` 环节开始，开发环节在独立 `worktree` 中进行，本地验证通过后进行分支提交并创建PR
 
 ### 立项
-使用 `intent-driven` 技能处理，依次输出 `intent.md -> spec.md -> plan.md`
+- 包含`规划与设计`两个阶段，使用 `intent-driven` 技能处理需求。
 
 ```text
 intents/20261015_华为核心网审计日志/
@@ -56,16 +56,10 @@ intents/20261015_华为核心网审计日志/
 └── plan.md        # 构建阶段(Build)输出物：依据 spec.md 需求的可行性方案, 改哪些文件、顺序、风险、验证方式
 ```
 
-`intent.md` 未确认前不进入下一步；`spec.md` 是接口/行为的唯一契约来源，**改契约先改 spec.md**，
-代码只是它的实现。`spec.md` 定稿后再写 `plan.md`（改动清单、顺序、风险、验证方式）。
-
 ### 开发
-`plan.md`确认后进入开发环节，未确认不开发.
-* 在独立的 `worktree (.claude/worktrees/<slug>/)` 下进行，禁止在主仓开发，主仓只用于拉取和只读查看，不切分支、不暂存、不提交
-* 数据库操作优先执行, 使用 `scripts/database` 脚本 
-
-分支命名 `feature/<slug>`（先例：`feature/login-captcha`、`feature/login-page-spa`、
-`feature/captcha-width`、`feature/f-matcher-perf`、`feature/webui-docker`）。
+- `plan.md`确认后进入开发环节，未确认不开发.
+- 禁止在主仓开发，主仓只用于拉取和只读查看，不切分支、不暂存、不提交
+- 在独立的 `worktree (.claude/worktrees/<slug>/)` 下进行，分支命名 `feature/<slug>`
 
 ### 验证
 按改动范围跑，**命令与实测结果都要留下记录**：
