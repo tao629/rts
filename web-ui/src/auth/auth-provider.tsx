@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-import { authApi, type LoginRequest } from "@/api/auth"
+import { AuthApiError, authApi, type LoginRequest } from "@/api/auth"
 import { AuthContext, type AuthContextValue } from "./auth-context"
 import {
   clearSession,
+  isRemembered,
   readSession,
   writeSession,
   type AuthSession,
@@ -54,6 +55,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
     setLoginNotice(false)
   }, [session?.token])
+
+  /**
+   * 挂载时向后端确认登录态。
+   *
+   * 登录态由服务端裁决：本地存着的令牌可能已经过期、被停用账号失效，
+   * 所以刷新页面后要拿 `/auth/me` 换一次用户信息：
+   * - 成功：用后端返回的用户信息刷新本地会话；
+   * - 401 / 403：登录态不再成立，清干净按未登录处理；
+   * - 网络错误：**保留**本地会话——网络抖动不该把人踢出登录态。
+   */
+  useEffect(() => {
+    const current = readSession()
+    if (!current) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const user = await authApi.fetchMe(current.token)
+        if (cancelled) return
+        const next: AuthSession = { ...current, user }
+        writeSession(next, isRemembered())
+        setSession(next)
+      } catch (error) {
+        if (cancelled) return
+        if (error instanceof AuthApiError && error.code === "NETWORK_ERROR") {
+          console.warn("校验登录态失败（网络不可用），暂时保留本地登录态")
+          return
+        }
+        clearSession()
+        setSession(null)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(
     () => () => {

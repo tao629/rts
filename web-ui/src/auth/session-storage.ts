@@ -75,3 +75,18 @@ export function clearSession(): void {
     // ignore
   }
 }
+
+/**
+ * 当前会话是否落在 localStorage（即用户勾了「记住我」）。
+ *
+ * 刷新会话时用它决定写回哪一处，避免把 sessionStorage 里的会话挪到 localStorage，
+ * 或者反过来——那会意外延长（或缩短）会话的有效期。
+ */
+export function isRemembered(): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) !== null
+  } catch {
+    return false
+  }
+}

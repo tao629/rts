@@ -29,6 +29,16 @@ pub enum ApiError {
     InvalidCaptcha(String),
     /// 用户名或口令错误。
     InvalidCredentials,
+    /// 令牌缺失 / 非法 / 过期 / 验签失败。
+    TokenInvalid(String),
+    /// 账号已停用。
+    AccountDisabled,
+    /// 已登录但没有权限。
+    Forbidden(String),
+    /// 目标账号不存在。
+    NotFound(String),
+    /// 用户名已存在。
+    UsernameTaken,
     /// 账号处于锁定期。
     AccountLocked,
     /// 触发限流。
@@ -44,6 +54,11 @@ impl ApiError {
             Self::Validation(_) => "VALIDATION_ERROR",
             Self::InvalidCaptcha(_) => "INVALID_CAPTCHA",
             Self::InvalidCredentials => "INVALID_CREDENTIALS",
+            Self::TokenInvalid(_) => "TOKEN_INVALID",
+            Self::AccountDisabled => "ACCOUNT_DISABLED",
+            Self::Forbidden(_) => "FORBIDDEN",
+            Self::NotFound(_) => "NOT_FOUND",
+            Self::UsernameTaken => "USERNAME_TAKEN",
             Self::AccountLocked => "ACCOUNT_LOCKED",
             Self::RateLimited => "RATE_LIMITED",
             Self::Server(_) => "SERVER_ERROR",
@@ -54,7 +69,10 @@ impl ApiError {
     pub fn status(&self) -> StatusCode {
         match self {
             Self::Validation(_) | Self::InvalidCaptcha(_) => StatusCode::BAD_REQUEST,
-            Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
+            Self::InvalidCredentials | Self::TokenInvalid(_) => StatusCode::UNAUTHORIZED,
+            Self::AccountDisabled | Self::Forbidden(_) => StatusCode::FORBIDDEN,
+            Self::NotFound(_) => StatusCode::NOT_FOUND,
+            Self::UsernameTaken => StatusCode::CONFLICT,
             Self::AccountLocked => StatusCode::LOCKED,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::Server(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -64,10 +82,15 @@ impl ApiError {
     /// 可读文案。
     pub fn message(&self) -> &str {
         match self {
-            Self::Validation(message) | Self::InvalidCaptcha(message) | Self::Server(message) => {
-                message
-            }
+            Self::Validation(message)
+            | Self::InvalidCaptcha(message)
+            | Self::TokenInvalid(message)
+            | Self::Forbidden(message)
+            | Self::NotFound(message)
+            | Self::Server(message) => message,
             Self::InvalidCredentials => "用户名或密码错误",
+            Self::AccountDisabled => "账号已停用，请联系管理员",
+            Self::UsernameTaken => "用户名已存在",
             Self::AccountLocked => "登录失败次数过多，账号已临时锁定，请稍后再试",
             Self::RateLimited => "请求过于频繁，请稍后再试",
         }
@@ -81,6 +104,21 @@ impl ApiError {
     /// 验证码失败的便捷构造。
     pub fn invalid_captcha(message: impl Into<String>) -> Self {
         Self::InvalidCaptcha(message.into())
+    }
+
+    /// 令牌无效的便捷构造。
+    pub fn token_invalid(message: impl Into<String>) -> Self {
+        Self::TokenInvalid(message.into())
+    }
+
+    /// 权限不足的便捷构造。
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self::Forbidden(message.into())
+    }
+
+    /// 目标不存在的便捷构造。
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self::NotFound(message.into())
     }
 }
 

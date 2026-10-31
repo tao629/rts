@@ -1,21 +1,21 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 
 import { AuthApiError, toErrorMessage } from "../src/api/auth/errors"
-import { MOCK_CREDENTIALS, MockAuthApi } from "../src/api/auth/mock-auth-api"
+import { HttpAuthApi } from "../src/api/auth/http-auth-api"
 import { loginSchema } from "../src/lib/login-schema"
 import { sanitizeFrom } from "../src/lib/safe-redirect"
 import {
   clearSession,
+  isRemembered,
   readSession,
   writeSession,
   type AuthSession,
 } from "../src/auth/session-storage"
 
 /**
- * mock 模式的演示账号。口令从 mock 实现导出的清单里取，
- * 避免在测试代码里写死口令字面量。
+ * 测试用的口令：运行时随机生成，仓库里不出现口令字面量。
  */
-const DEMO_PASSWORD = MOCK_CREDENTIALS[0]?.password ?? ""
+const DUMMY_PASSWORD = crypto.randomUUID()
 
 function createStorage(): Storage {
   const map = new Map<string, string>()
@@ -51,19 +51,46 @@ const sessionFixture: AuthSession = {
   },
 }
 
-/**
- * 从 mock 生成的验证码图片里还原答案。
- * 答案只存在于图片本身（每个字符一个 <text> 节点），
- * 这样测试可以走完整链路，而无需 mock 实现向外暴露答案。
- */
-function readCaptchaAnswer(image: string): string {
-  const base64 = image.slice(image.indexOf(",") + 1)
-  const svg = atob(base64)
-  const chars = [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(
-    (match) => match[1] ?? "",
-  )
-  return chars.join("")
+interface StubResult {
+  status?: number
+  body?: unknown
 }
+
+/** 被记录下来的请求。 */
+interface RecordedCall {
+  url: string
+  init?: RequestInit
+}
+
+/**
+ * 用打桩替换全局 fetch。
+ *
+ * 前端不再有 mock 认证实现，接口行为由后端裁决；
+ * 这里只桩住 HTTP 边界，验证前端对后端契约的处理。
+ */
+function stubFetch(
+  handler: (url: string, init?: RequestInit) => StubResult | Promise<StubResult>,
+): RecordedCall[] {
+  const calls: RecordedCall[] = []
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : String(input)
+    calls.push({ url, init })
+    const result = await handler(url, init)
+    const status = result.status ?? 200
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => result.body,
+    } as Response
+  }) as typeof fetch
+  return calls
+}
+
+const originalFetch = globalThis.fetch
+
+afterEach(() => {
+  globalThis.fetch = originalFetch
+})
 
 describe("登录表单校验", () => {
   test("空用户名与空密码分别给出提示", () => {
@@ -82,7 +109,7 @@ describe("登录表单校验", () => {
   test("用户名首尾空格被裁剪后仍视为有效", () => {
     const result = loginSchema.safeParse({
       username: "  admin  ",
-      password: DEMO_PASSWORD,
+      password: DUMMY_PASSWORD,
       captchaCode: "8F3K",
       remember: true,
     })
@@ -95,7 +122,7 @@ describe("登录表单校验", () => {
   test("纯空格的用户名判定为缺失", () => {
     const result = loginSchema.safeParse({
       username: "   ",
-      password: DEMO_PASSWORD,
+      password: DUMMY_PASSWORD,
       captchaCode: "8F3K",
       remember: false,
     })
@@ -105,7 +132,7 @@ describe("登录表单校验", () => {
   test("验证码为空时提示请输入验证码", () => {
     const result = loginSchema.safeParse({
       username: "admin",
-      password: DEMO_PASSWORD,
+      password: DUMMY_PASSWORD,
       captchaCode: "",
       remember: true,
     })
@@ -117,7 +144,7 @@ describe("登录表单校验", () => {
   test("验证码长度不在 4~6 之间时提示格式不正确", () => {
     const short = loginSchema.safeParse({
       username: "admin",
-      password: DEMO_PASSWORD,
+      password: DUMMY_PASSWORD,
       captchaCode: "8F3",
       remember: true,
     })
@@ -128,7 +155,7 @@ describe("登录表单校验", () => {
 
     const long = loginSchema.safeParse({
       username: "admin",
-      password: DEMO_PASSWORD,
+      password: DUMMY_PASSWORD,
       captchaCode: "8F3K9XQ",
       remember: true,
     })
@@ -141,7 +168,7 @@ describe("登录表单校验", () => {
   test("4~6 位验证码视为有效", () => {
     const result = loginSchema.safeParse({
       username: "admin",
-      password: DEMO_PASSWORD,
+      password: DUMMY_PASSWORD,
       captchaCode: " 8F3K ",
       remember: true,
     })
@@ -152,34 +179,184 @@ describe("登录表单校验", () => {
   })
 })
 
-describe("mock 认证接口", () => {
-  const api = new MockAuthApi()
+describe("认证接口（fetch 打桩）", () => {
+  test("登录成功返回令牌与用户信息", async () => {
+    const calls = stubFetch(() => ({
+      body: {
+        token: "jwt-token",
+        tokenType: "Bearer",
+        expiresAt: new Date(Date.now() + 7200_000).toISOString(),
+        user: {
+          id: "1",
+          username: "admin",
+          displayName: "系统管理员",
+          roles: ["super_admin"],
+        },
+      },
+    }))
 
-  test("正确口令返回 token 与用户信息", async () => {
-    const captcha = await api.fetchCaptcha()
+    const api = new HttpAuthApi("/api/v1")
     const result = await api.login({
       username: "admin",
-      password: DEMO_PASSWORD,
+      password: DUMMY_PASSWORD,
       remember: true,
-      captchaId: captcha.captchaId,
-      captchaCode: readCaptchaAnswer(captcha.image),
+      captchaId: "captcha-1",
+      captchaCode: "AB3D",
     })
-    expect(result.token.startsWith("mock-token-")).toBe(true)
+
+    expect(result.token).toBe("jwt-token")
+    expect(result.tokenType).toBe("Bearer")
     expect(result.user.username).toBe("admin")
     expect(new Date(result.expiresAt).getTime()).toBeGreaterThan(Date.now())
+
+    // 请求体里带上验证码 ID 与内容，且字段名与后端契约一致。
+    expect(calls[0]?.url).toBe("/api/v1/auth/login")
+    const payload = JSON.parse(String(calls[0]?.init?.body))
+    expect(payload.captchaId).toBe("captcha-1")
+    expect(payload.captchaCode).toBe("AB3D")
+    expect(payload.username).toBe("admin")
   })
 
-  test("口令错误抛出 INVALID_CREDENTIALS", async () => {
-    const captcha = await api.fetchCaptcha()
+  test("后端返回 401 时抛出 INVALID_CREDENTIALS", async () => {
+    stubFetch(() => ({
+      status: 401,
+      body: { code: "INVALID_CREDENTIALS", message: "用户名或密码错误" },
+    }))
+
+    const api = new HttpAuthApi("/api/v1")
     expect(
       api.login({
         username: "admin",
-        password: "wrong",
+        password: DUMMY_PASSWORD,
         remember: true,
-        captchaId: captcha.captchaId,
-        captchaCode: readCaptchaAnswer(captcha.image),
+        captchaId: "captcha-1",
+        captchaCode: "AB3D",
       }),
-    ).rejects.toThrow(AuthApiError)
+    ).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" })
+  })
+
+  test("后端返回 400 时抛出 INVALID_CAPTCHA", async () => {
+    stubFetch(() => ({
+      status: 400,
+      body: { code: "INVALID_CAPTCHA", message: "验证码错误或已失效" },
+    }))
+
+    const api = new HttpAuthApi("/api/v1")
+    expect(
+      api.login({
+        username: "admin",
+        password: DUMMY_PASSWORD,
+        remember: true,
+        captchaId: "captcha-1",
+        captchaCode: "WRONG",
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_CAPTCHA" })
+  })
+
+  test("账号被停用时抛出 ACCOUNT_DISABLED", async () => {
+    stubFetch(() => ({
+      status: 403,
+      body: { code: "ACCOUNT_DISABLED", message: "账号已停用" },
+    }))
+
+    const api = new HttpAuthApi("/api/v1")
+    expect(
+      api.login({
+        username: "admin",
+        password: DUMMY_PASSWORD,
+        remember: true,
+        captchaId: "captcha-1",
+        captchaCode: "AB3D",
+      }),
+    ).rejects.toMatchObject({ code: "ACCOUNT_DISABLED" })
+  })
+
+  test("请求发不出去时抛出 NETWORK_ERROR", async () => {
+    globalThis.fetch = (async () => {
+      throw new TypeError("Failed to fetch")
+    }) as typeof fetch
+
+    const api = new HttpAuthApi("/api/v1")
+    expect(
+      api.login({
+        username: "admin",
+        password: DUMMY_PASSWORD,
+        remember: true,
+        captchaId: "captcha-1",
+        captchaCode: "AB3D",
+      }),
+    ).rejects.toMatchObject({ code: "NETWORK_ERROR" })
+  })
+
+  test("取验证码带上 no-store，且返回三项字段", async () => {
+    const calls = stubFetch(() => ({
+      body: {
+        captchaId: "captcha-1",
+        image: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+      },
+    }))
+
+    const api = new HttpAuthApi("/api/v1")
+    const captcha = await api.fetchCaptcha()
+
+    expect(captcha.captchaId).toBe("captcha-1")
+    expect(captcha.image.startsWith("data:image/svg+xml;base64,")).toBe(true)
+    expect(new Date(captcha.expiresAt).getTime()).toBeGreaterThan(Date.now())
+    expect(calls[0]?.url).toBe("/api/v1/auth/captcha")
+    expect(calls[0]?.init?.cache).toBe("no-store")
+  })
+
+  test("fetchMe 用 Bearer 令牌换回用户信息", async () => {
+    const calls = stubFetch(() => ({
+      body: {
+        id: "1",
+        username: "admin",
+        displayName: "系统管理员",
+        roles: ["super_admin"],
+      },
+    }))
+
+    const api = new HttpAuthApi("/api/v1")
+    const user = await api.fetchMe("jwt-token")
+
+    expect(user.username).toBe("admin")
+    expect(calls[0]?.url).toBe("/api/v1/auth/me")
+    const headers = calls[0]?.init?.headers as Record<string, string> | undefined
+    expect(headers?.Authorization).toBe("Bearer jwt-token")
+  })
+
+  test("fetchMe 遇到 401 时抛出 TOKEN_INVALID", async () => {
+    stubFetch(() => ({
+      status: 401,
+      body: { code: "TOKEN_INVALID", message: "令牌无效或已过期" },
+    }))
+
+    const api = new HttpAuthApi("/api/v1")
+    expect(api.fetchMe("stale-token")).rejects.toMatchObject({
+      code: "TOKEN_INVALID",
+    })
+  })
+
+  test("fetchMe 遇到 403 时抛出 ACCOUNT_DISABLED", async () => {
+    stubFetch(() => ({
+      status: 403,
+      body: { code: "ACCOUNT_DISABLED", message: "账号已停用" },
+    }))
+
+    const api = new HttpAuthApi("/api/v1")
+    expect(api.fetchMe("jwt-token")).rejects.toMatchObject({
+      code: "ACCOUNT_DISABLED",
+    })
+  })
+
+  test("登出失败不抛错", async () => {
+    globalThis.fetch = (async () => {
+      throw new TypeError("Failed to fetch")
+    }) as typeof fetch
+
+    const api = new HttpAuthApi("/api/v1")
+    await api.logout("jwt-token")
   })
 
   test("错误码映射为中文提示", () => {
@@ -192,104 +369,12 @@ describe("mock 认证接口", () => {
     expect(toErrorMessage(new AuthApiError("NETWORK_ERROR"))).toBe(
       "无法连接到服务器，请检查网络后重试",
     )
-  })
-})
-
-describe("mock 验证码", () => {
-  const api = new MockAuthApi()
-
-  test("fetchCaptcha 返回可用的 captchaId 与 base64 图片", async () => {
-    const captcha = await api.fetchCaptcha()
-    expect(captcha.captchaId.length).toBeGreaterThan(0)
-    expect(captcha.image.startsWith("data:image/svg+xml;base64,")).toBe(true)
-    expect(new Date(captcha.expiresAt).getTime()).toBeGreaterThan(Date.now())
-    // 答案为 4 位，取自易混字符剔除后的字符集
-    const answer = readCaptchaAnswer(captcha.image)
-    expect(answer).toHaveLength(4)
-    expect(/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/.test(answer)).toBe(true)
-  })
-
-  test("验证码错误时抛出 INVALID_CAPTCHA", async () => {
-    const captcha = await api.fetchCaptcha()
-    expect(
-      api.login({
-        username: "admin",
-        password: DEMO_PASSWORD,
-        remember: true,
-        captchaId: captcha.captchaId,
-        captchaCode: "WRONG",
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_CAPTCHA" })
-  })
-
-  test("缺少验证码字段时抛出 INVALID_CAPTCHA", async () => {
-    expect(
-      api.login({
-        username: "admin",
-        password: DEMO_PASSWORD,
-        remember: true,
-        captchaId: "",
-        captchaCode: "",
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_CAPTCHA" })
-  })
-
-  test("验证码一次性消费：同一 captchaId 第二次使用判失败", async () => {
-    const captcha = await api.fetchCaptcha()
-    const answer = readCaptchaAnswer(captcha.image)
-    await api.login({
-      username: "admin",
-      password: DEMO_PASSWORD,
-      remember: true,
-      captchaId: captcha.captchaId,
-      captchaCode: answer,
-    })
-    expect(
-      api.login({
-        username: "admin",
-        password: DEMO_PASSWORD,
-        remember: true,
-        captchaId: captcha.captchaId,
-        captchaCode: answer,
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_CAPTCHA" })
-  })
-
-  test("校验失败同样作废验证码（一次性消费）", async () => {
-    const captcha = await api.fetchCaptcha()
-    const answer = readCaptchaAnswer(captcha.image)
-    await expect(
-      api.login({
-        username: "admin",
-        password: DEMO_PASSWORD,
-        remember: true,
-        captchaId: captcha.captchaId,
-        captchaCode: "NOPE",
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_CAPTCHA" })
-    expect(
-      api.login({
-        username: "admin",
-        password: DEMO_PASSWORD,
-        remember: true,
-        captchaId: captcha.captchaId,
-        captchaCode: answer,
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_CAPTCHA" })
-  })
-
-  test("验证码先于口令校验：口令错但验证码对时返回 INVALID_CREDENTIALS", async () => {
-    const captcha = await api.fetchCaptcha()
-    const answer = readCaptchaAnswer(captcha.image)
-    expect(
-      api.login({
-        username: "admin",
-        password: "wrong",
-        remember: true,
-        captchaId: captcha.captchaId,
-        captchaCode: answer,
-      }),
-    ).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" })
+    expect(toErrorMessage(new AuthApiError("TOKEN_INVALID"))).toBe(
+      "登录状态已失效，请重新登录",
+    )
+    expect(toErrorMessage(new AuthApiError("ACCOUNT_DISABLED"))).toBe(
+      "该账号已被停用，请联系管理员",
+    )
   })
 })
 
@@ -300,6 +385,7 @@ describe("登录态存储", () => {
     expect(local.getItem("rts.auth.session")).not.toBeNull()
     expect(session.getItem("rts.auth.session")).toBeNull()
     expect(readSession()?.token).toBe("token-1")
+    expect(isRemembered()).toBe(true)
   })
 
   test("remember=false 落在 sessionStorage 并清理 localStorage", () => {
@@ -308,6 +394,7 @@ describe("登录态存储", () => {
     expect(local.getItem("rts.auth.session")).toBeNull()
     expect(session.getItem("rts.auth.session")).not.toBeNull()
     expect(readSession()?.token).toBe("token-1")
+    expect(isRemembered()).toBe(false)
   })
 
   test("已过期的登录态被判定为无效并清除", () => {

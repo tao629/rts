@@ -1,16 +1,14 @@
 //! 应用状态。
 //!
-//! 单实例、内存态的最小实现：验证码存储、登录失败计数、账号表都在进程内存里，
-//! 多实例部署时验证码不共享（intent 已声明本次不引入外部存储）。
-//!
-//! 账号来自环境变量注入，启动时对口令做一次 argon2id 哈希，明文随即丢弃。
+//! 验证码存储、登录失败计数在单进程内存里（多实例部署时"取码"与"登录"必须落在同一实例）；
+//! **账号表在数据库里**，通过 [`AccountStore`] 访问，多实例共享同一份账号。
 
 use argon2::Argon2;
 use argon2::password_hash::{PasswordVerifier, phc::PasswordHash};
 use tokio::sync::Mutex;
 
 use crate::auth::guard::LoginGuard;
-use crate::auth::users::{UserRecord, build_records};
+use crate::auth::users::{AccountStore, UserRecord};
 use crate::captcha::store::CaptchaStore;
 use crate::config::Config;
 
@@ -23,22 +21,16 @@ pub struct AppState {
     pub captcha: Mutex<CaptchaStore>,
     /// 登录失败计数与锁定。
     pub guard: Mutex<LoginGuard>,
-    /// 账号表（口令只以哈希形式驻留）。
-    pub users: Vec<UserRecord>,
+    /// 账号来源（生产查库，测试走内存）。
+    pub store: AccountStore,
     /// 诱饵口令哈希：账号不存在时也做一次等价的 argon2 运算，
     /// 抹平"账号不存在"与"口令错误"之间的耗时差异。
     dummy_hash: String,
 }
 
 impl AppState {
-    /// 按配置初始化状态。
-    ///
-    /// 账号表来自配置里的注入值；口令在这里做一次 argon2id 哈希，明文随即被丢弃，
-    /// 运行期内存里只保留 PHC 哈希串。
-    pub fn new(config: Config) -> Self {
-        let mut config = config;
-        // `take` 把注入的账号配置（含明文口令）从配置里搬走，哈希后即随临时值一起释放。
-        let users = build_records(std::mem::take(&mut config.auth_accounts));
+    /// 按配置与账号来源初始化状态。
+    pub fn new(config: Config, store: AccountStore) -> Self {
         // 诱饵口令用随机值，永远不会匹配成功。
         let dummy_hash =
             crate::auth::users::hash_password(&random_dummy_secret()).unwrap_or_default();
@@ -56,9 +48,20 @@ impl AppState {
             config,
             captcha: Mutex::new(captcha),
             guard: Mutex::new(guard),
-            users,
+            store,
             dummy_hash,
         }
+    }
+
+    /// 按登录名查账号。
+    ///
+    /// 数据库出错时**不**降级成"账号不存在"——那会把服务端故障说成认证失败，
+    /// 让运维分不清是库挂了还是口令错了。
+    pub async fn find_account(&self, username: &str) -> Result<Option<UserRecord>, String> {
+        self.store
+            .find_by_username(username)
+            .await
+            .map_err(|err| err.to_string())
     }
 
     /// 用诱饵哈希校验口令：结果恒为 `false`，但耗时与真实校验相当。
